@@ -33,7 +33,7 @@ public class Main {
     	   output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
        }
        else if ((HttpRequest[1].split("/")[1]).equals("user-agent")) {
-           String useragent = line.split("\\s+")[1];
+           String useragent = reader.readLine().split("\\s+")[1];
            String reply = String.format(
                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %s\r\n\r\n%s\r\n",
                useragent.length(), useragent);
