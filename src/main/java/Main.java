@@ -29,7 +29,6 @@ public class Main {
        System.out.println(line);
        String[] HttpRequest = line.split(" ");
        OutputStream output = clientSocket.getOutputStream();
-       output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
        if(HttpRequest[1].equals("/")) {
     	   output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
        }
@@ -38,6 +37,19 @@ public class Main {
        }
      } catch (IOException e) {
        System.out.println("IOException: " + e.getMessage());
+     }
+     finally {
+         // Close the sockets in a safe way
+         try {
+             if (clientSocket != null) {
+                 clientSocket.close();
+             }
+             if (serverSocket != null) {
+                 serverSocket.close();
+             }
+         } catch (IOException e) {
+             System.out.println("IOException on close: " + e.getMessage());
+         }
      }
   }
 }
