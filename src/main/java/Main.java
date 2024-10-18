@@ -27,7 +27,7 @@ public class Main {
        BufferedReader reader = new BufferedReader(new InputStreamReader(input));
        String line = reader.readLine();
        System.out.println(line);
-       String[] HttpRequest = line.split(" ", 0);
+       String[] HttpRequest = line.split(" ");
        OutputStream output = clientSocket.getOutputStream();
        output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
        if(HttpRequest[1].equals("/")) {
