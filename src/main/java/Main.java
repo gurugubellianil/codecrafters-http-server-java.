@@ -32,6 +32,15 @@ public class Main {
        if(HttpRequest[1].equals("/")) {
     	   output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
        }
+       else if ((HttpRequest[1].split("/")).equals("user-agent")) {
+           String useragent = reader.readLine().split("\\s+")[1];
+           System.out.println("reader Anil:"+reader);
+           System.out.println("useragent Anil:"+useragent);
+           String reply = String.format(
+               "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %s\r\n\r\n%s\r\n",
+               useragent.length(), useragent);
+           output.write(reply.getBytes());
+         }
        else if (HttpRequest[1].startsWith("/echo/")) {
            String queryParam = HttpRequest[1].split("/")[2];
            output.write(
