@@ -26,7 +26,7 @@ public class Main {
        InputStream input = clientSocket.getInputStream();
        BufferedReader reader = new BufferedReader(new InputStreamReader(input));
        String line = reader.readLine();
-       System.out.println(line);
+       System.out.println("Line: "+line);
        String[] HttpRequest = line.split(" ");
        OutputStream output = clientSocket.getOutputStream();
        if(HttpRequest[1].equals("/")) {
@@ -34,8 +34,6 @@ public class Main {
        }
        else if ((HttpRequest[1].split("/")[1]).equals("user-agent")) {
            String useragent = line.split("\\s+")[1];
-           System.out.println("reader Anil:"+reader);
-           System.out.println("useragent Anil:"+useragent);
            String reply = String.format(
                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %s\r\n\r\n%s\r\n",
                useragent.length(), useragent);
