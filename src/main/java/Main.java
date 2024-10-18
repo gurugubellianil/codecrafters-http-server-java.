@@ -32,8 +32,8 @@ public class Main {
        if(HttpRequest[1].equals("/")) {
     	   output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
        }
-       else if ((HttpRequest[1].split("/")).equals("user-agent")) {
-           String useragent = reader.readLine().split("\\s+")[1];
+       else if ((HttpRequest[1].split("/")[1]).equals("user-agent")) {
+           String useragent = line.split("\\s+")[1];
            System.out.println("reader Anil:"+reader);
            System.out.println("useragent Anil:"+useragent);
            String reply = String.format(
