@@ -8,8 +8,6 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -87,9 +85,23 @@ public class Main {
     }
 
     private static void handleEchoRequest(String requestPath, BufferedReader reader, OutputStream output) throws IOException {
-        String echoStr = requestPath.split("/")[2];
-        String contentEncoding = getHeader(reader, "Accept-Encoding");
+        String echoStr = requestPath.split("/")[2]; // Extract the string to echo
+        String contentEncoding = null;
 
+        // Read headers to find the Accept-Encoding
+        String header;
+        while ((header = reader.readLine()) != null && !header.isEmpty()) {
+            if (header.startsWith("Accept-Encoding:")) {
+                contentEncoding = header.split(": ")[1];
+            }
+        }
+
+        // Prepare response based on Accept-Encoding
+        String httpResponse = prepareEchoResponse(echoStr, contentEncoding);
+        output.write(httpResponse.getBytes());
+    }
+
+    private static String prepareEchoResponse(String echoStr, String contentEncoding) {
         String httpResponse;
         if ("gzip".equalsIgnoreCase(contentEncoding)) {
             httpResponse = "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Type: text/plain\r\nContent-Length: " +
@@ -98,18 +110,7 @@ public class Main {
             httpResponse = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
                     echoStr.length() + "\r\n\r\n" + echoStr;
         }
-
-        output.write(httpResponse.getBytes());
-    }
-
-    private static String getHeader(BufferedReader reader, String headerName) throws IOException {
-        String header;
-        while ((header = reader.readLine()) != null && !header.isEmpty()) {
-            if (header.toLowerCase().startsWith(headerName.toLowerCase() + ":")) {
-                return header.split(": ")[1];
-            }
-        }
-        return null;
+        return httpResponse;
     }
 
     private static void handleOtherRequests(String[] httpRequest, BufferedReader reader, OutputStream output) throws IOException {
