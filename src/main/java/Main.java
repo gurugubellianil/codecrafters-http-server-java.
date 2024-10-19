@@ -44,9 +44,9 @@ public class Main {
 
       if (HttpRequest.length > 1) {
         String path = HttpRequest[1];
-        
+
         if (path.equals("/")) {
-          // Handle root ("/") path - return 200 OK with a simple response
+          // Handle root ("/") path
           String responseHeaders = "HTTP/1.1 200 OK\r\n" +
                                    "Content-Type: text/plain\r\n" +
                                    "Content-Length: 0\r\n\r\n";  // Empty body
@@ -54,6 +54,9 @@ public class Main {
         } else if (path.startsWith("/files/")) {
           String filename = path.substring("/files/".length());
           handleFileRequest(output, filename);
+        } else if (path.equals("/user-agent")) {
+          // Handle /user-agent path
+          handleUserAgentRequest(reader, output);
         } else {
           output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
         }
@@ -95,5 +98,25 @@ public class Main {
         System.out.println("IOException while sending 404 response: " + e.getMessage());
       }
     }
+  }
+
+  private static void handleUserAgentRequest(BufferedReader reader, OutputStream output) throws IOException {
+    String userAgent = "";
+    String line;
+
+    // Read the headers to extract the User-Agent
+    while ((line = reader.readLine()) != null && !line.isEmpty()) {
+      if (line.startsWith("User-Agent:")) {
+        userAgent = line.substring("User-Agent:".length()).trim();
+      }
+    }
+
+    // Send the response with the User-Agent
+    String responseBody = "User-Agent: " + userAgent;
+    String responseHeaders = "HTTP/1.1 200 OK\r\n" +
+                             "Content-Type: text/plain\r\n" +
+                             "Content-Length: " + responseBody.length() + "\r\n\r\n";
+    output.write(responseHeaders.getBytes());
+    output.write(responseBody.getBytes());
   }
 }
