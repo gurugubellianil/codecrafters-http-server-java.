@@ -5,66 +5,58 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Main {
   public static void main(String[] args) {
-    // You can use print statements as follows for debugging, they'll be visible when running tests.
-    System.out.println("Logs from your program will appear here!");
-    
-//     Uncomment this block to pass the first stage
-    ServerSocket serverSocket = null;
-    Socket clientSocket = null;
-     try {
-       serverSocket = new ServerSocket(4221);
-    
-       // Since the tester restarts your program quite often, setting SO_REUSEADDR
-       // ensures that we don't run into 'Address already in use' errors
-       serverSocket.setReuseAddress(true);
-    
-       clientSocket = serverSocket.accept(); // Wait for connection from client.
-       System.out.println("accepted new connection");
-       InputStream input = clientSocket.getInputStream();
-       BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-       String line = reader.readLine();
-       System.out.println("Line: "+line);
-       String[] HttpRequest = line.split(" ");
-       OutputStream output = clientSocket.getOutputStream();
-       if(HttpRequest[1].equals("/")) {
-    	   output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
-       }
-       else if ((HttpRequest[1].split("/")[1]).equals("user-agent")) {
-    	   reader.readLine();
-           String useragent = reader.readLine().split("\\s+")[1];
-           String reply = String.format(
-               "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %s\r\n\r\n%s\r\n",
-               useragent.length(), useragent);
-           output.write(reply.getBytes());
-         }
-       else if (HttpRequest[1].startsWith("/echo/")) {
-           String queryParam = HttpRequest[1].split("/")[2];
-           output.write(
-               ("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
-                queryParam.length() + "\r\n\r\n" + queryParam)
-                   .getBytes());
-       } 
-       else {
-    	   output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
-       }
-     } catch (IOException e) {
-       System.out.println("IOException: " + e.getMessage());
-     }
-     finally {
-         // Close the sockets in a safe way
-         try {
-             if (clientSocket != null) {
-                 clientSocket.close();
-             }
-             if (serverSocket != null) {
-                 serverSocket.close();
-             }
-         } catch (IOException e) {
-             System.out.println("IOException on close: " + e.getMessage());
-         }
-     }
+    final int port = 4221;
+    final int maxThreads = 10;
+    ExecutorService threadPool = Executors.newFixedThreadPool(maxThreads);
+
+    try (ServerSocket serverSocket = new ServerSocket(port)) {
+      serverSocket.setReuseAddress(true);
+      System.out.println("Server is running on port " + port);
+
+      while (true) {
+        // Accept incoming client connections
+        Socket clientSocket = serverSocket.accept();
+        System.out.println("Accepted new connection");
+
+        // Submit a new task to the thread pool to handle each client connection
+        threadPool.submit(() -> handleRequest(clientSocket));
+      }
+    } catch (IOException e) {
+      System.out.println("IOException: " + e.getMessage());
+    }
+  }
+
+  private static void handleRequest(Socket clientSocket) {
+    try (InputStream input = clientSocket.getInputStream();
+         BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+         OutputStream output = clientSocket.getOutputStream()) {
+
+      // Read the first line of the request
+      String line = reader.readLine();
+      System.out.println("Request: " + line);
+
+      // Handle the request and respond
+      String[] HttpRequest = line.split(" ");
+      if (HttpRequest[1].equals("/")) {
+        output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
+      } else {
+        output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+      }
+      output.flush();
+
+    } catch (IOException e) {
+      System.out.println("IOException while handling request: " + e.getMessage());
+    } finally {
+      try {
+        clientSocket.close();
+      } catch (IOException e) {
+        System.out.println("IOException on socket close: " + e.getMessage());
+      }
+    }
   }
 }
