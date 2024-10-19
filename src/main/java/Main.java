@@ -1,4 +1,5 @@
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -10,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.zip.GZIPOutputStream;
 
 public class Main {
     private static String directory = null;
@@ -46,9 +48,18 @@ public class Main {
             System.out.println("Request: " + line);
             String[] httpRequest = line.split(" ");
 
+            // Check for request headers
+            String acceptEncoding = null;
+            String header;
+            while ((header = reader.readLine()) != null && !header.isEmpty()) {
+                if (header.startsWith("Accept-Encoding:")) {
+                    acceptEncoding = header.split(": ")[1];
+                }
+            }
+
             // Handle echo requests
             if (httpRequest[1].startsWith("/echo/")) {
-                handleEchoRequest(httpRequest[1], output);
+                handleEchoRequest(httpRequest[1], output, acceptEncoding);
             } else if (httpRequest[1].startsWith("/files/")) {
                 handleFileRequest(httpRequest[1], output);
             } else {
@@ -110,11 +121,27 @@ public class Main {
         }
     }
 
-    private static void handleEchoRequest(String path, OutputStream output) throws IOException {
+    private static void handleEchoRequest(String path, OutputStream output, String acceptEncoding) throws IOException {
         String message = path.substring(6); // Remove "/echo/"
-        String response = String.format(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-                message.length(), message);
-        output.write(response.getBytes());
+        byte[] responseBody = message.getBytes();
+        String response;
+        
+        if (acceptEncoding != null && acceptEncoding.contains("gzip")) {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream)) {
+                gzipOutputStream.write(responseBody);
+            }
+            byte[] compressedResponse = byteArrayOutputStream.toByteArray();
+            response = String.format(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n",
+                    compressedResponse.length);
+            output.write(response.getBytes());
+            output.write(compressedResponse);
+        } else {
+            response = String.format(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+                    responseBody.length, message);
+            output.write(response.getBytes());
+        }
     }
 }
