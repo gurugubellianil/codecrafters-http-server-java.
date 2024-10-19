@@ -8,15 +8,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Main {
-  private static String directory;
+  private static String directory = "/tmp"; // Default directory
 
   public static void main(String[] args) {
     // Check for --directory flag
     if (args.length == 2 && args[0].equals("--directory")) {
       directory = args[1];
-    } else {
-      System.out.println("Usage: java Main --directory <directory_path>");
-      return;
     }
 
     final int port = 4221;
