@@ -42,11 +42,23 @@ public class Main {
       System.out.println("Request: " + line);
       String[] HttpRequest = line.split(" ");
 
-      if (HttpRequest.length > 1 && HttpRequest[1].startsWith("/files/")) {
-        String filename = HttpRequest[1].substring("/files/".length());
-        handleFileRequest(output, filename);
+      if (HttpRequest.length > 1) {
+        String path = HttpRequest[1];
+        
+        if (path.equals("/")) {
+          // Handle root ("/") path - return 200 OK with a simple response
+          String responseHeaders = "HTTP/1.1 200 OK\r\n" +
+                                   "Content-Type: text/plain\r\n" +
+                                   "Content-Length: 0\r\n\r\n";  // Empty body
+          output.write(responseHeaders.getBytes());
+        } else if (path.startsWith("/files/")) {
+          String filename = path.substring("/files/".length());
+          handleFileRequest(output, filename);
+        } else {
+          output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+        }
       } else {
-        output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+        output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
       }
 
       output.flush();
