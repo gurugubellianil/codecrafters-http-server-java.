@@ -100,6 +100,9 @@ public class Main {
             // Create file
             Path filePath = Paths.get(directory, path);
             try {
+                // Create the parent directories if they do not exist
+                Files.createDirectories(filePath.getParent());
+
                 // Attempt to write the file
                 Files.write(filePath, requestBody.getBytes());
                 output.write("HTTP/1.1 201 Created\r\n\r\n".getBytes());
