@@ -57,8 +57,10 @@ public class Main {
                 }
             }
 
-            if (httpRequest[1].startsWith("/echo/")) {
+            if (httpRequest[0].equals("GET") && httpRequest[1].startsWith("/echo/")) {
                 handleEchoRequest(httpRequest[1], output, acceptEncoding);
+            } else if (httpRequest[0].equals("POST") && httpRequest[1].startsWith("/files/")) {
+                handleFileRequest(httpRequest[1], reader, output);
             } else {
                 handleOtherRequests(httpRequest, reader, output);
             }
@@ -77,20 +79,32 @@ public class Main {
     }
 
 
-    private static void handleFileRequest(String filePath, OutputStream output) throws IOException {
+
+    private static void handleFileRequest(String filePath, BufferedReader reader, OutputStream output) throws IOException {
         String fileName = filePath.substring(7); // Remove "/files/"
         Path path = Paths.get(directory, fileName);
-
-        if (Files.exists(path)) {
-            byte[] fileBytes = Files.readAllBytes(path);
-            String response = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " +
-                    fileBytes.length + "\r\n\r\n";
-            output.write(response.getBytes());
-            output.write(fileBytes);
-        } else {
-            output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+        
+        // Read Content-Length
+        int contentLength = -1; // Default to an invalid value
+        String header;
+        while ((header = reader.readLine()) != null && !header.isEmpty()) {
+            if (header.startsWith("Content-Length:")) {
+                contentLength = Integer.parseInt(header.split(": ")[1]);
+            }
         }
+
+        // Read the body based on the content length
+        char[] body = new char[contentLength];
+        reader.read(body, 0, contentLength);
+        String requestBody = new String(body);
+
+        // Create file
+        Files.write(path, requestBody.getBytes());
+
+        // Respond with a 201 Created status
+        output.write("HTTP/1.1 201 Created\r\n\r\n".getBytes());
     }
+
 
     private static void handleOtherRequests(String[] httpRequest, BufferedReader reader, OutputStream output) throws IOException {
         // Existing request handling (for /, /user-agent)
