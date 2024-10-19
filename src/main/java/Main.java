@@ -1,137 +1,109 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 public class Main {
-    private static String directory = null;
+  public static void main(String[] args) {
+    // You can use print statements as follows for debugging, they'll be visible when running tests.
+    System.out.println("Logs from your program will appear here!");
+    Socket clientSocket = null;
 
-    public static void main(String[] args) {
-        final int port = 4221;
-        final int maxThreads = 10;
-        ExecutorService threadPool = Executors.newFixedThreadPool(maxThreads);
-
-        // Check for the --directory argument
-        if (args.length == 2 && args[0].equalsIgnoreCase("--directory")) {
-            directory = args[1];
-        }
-
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            serverSocket.setReuseAddress(true);
-            System.out.println("Server is running on port " + port);
-
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
-                threadPool.submit(() -> handleRequest(clientSocket));
-            }
-        } catch (IOException e) {
-            System.out.println("IOException: " + e.getMessage());
-        }
+    String dir = null;
+    if((args.length == 2) && args[0].equals("--directory"))
+    {
+      dir = args[1];
     }
 
-    private static void handleRequest(Socket clientSocket) {
-        try (InputStream input = clientSocket.getInputStream();
-             BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-             OutputStream output = clientSocket.getOutputStream()) {
+    try (ServerSocket serverSocket = new ServerSocket(4221)) {
+      while(true) {
+        serverSocket.setReuseAddress(true);
+        clientSocket = serverSocket.accept();
+        sockThread Tsock = new sockThread(clientSocket, dir);
+        Tsock.start();
+      }
 
-            String line = reader.readLine();
-            System.out.println("Request: " + line);
-            String[] httpRequest = line.split(" ");
 
-            // Handle file requests
-            if (httpRequest[1].startsWith("/files/")) {
-                handleFileRequest(httpRequest[1], output);
-            } else if (httpRequest[1].startsWith("/echo/")) {
-                handleEchoRequest(httpRequest[1], reader, output);
-            } else {
-                // Existing request handling
-                handleOtherRequests(httpRequest, reader, output);
-            }
-
-            output.flush();
-
-        } catch (IOException e) {
-            System.out.println("IOException while handling request: " + e.getMessage());
-        } finally {
-            try {
-                clientSocket.close();
-            } catch (IOException e) {
-                System.out.println("IOException on socket close: " + e.getMessage());
-            }
-        }
+    } catch (IOException e) {
+      System.out.println("IOException: " + e.getMessage());
     }
+  }
+}
 
-    private static void handleFileRequest(String filePath, OutputStream output) throws IOException {
-        String fileName = filePath.substring(7); // Remove "/files/"
-        Path path = Paths.get(directory, fileName);
+class sockThread extends Thread {
+  private Socket sock;
+  private String dir;
+  public sockThread(Socket sock, String dir) {
+    this.sock = sock;
+    this.dir = dir;
+  }
 
-        if (Files.exists(path)) {
-            byte[] fileBytes = Files.readAllBytes(path);
-            String response = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " +
-                    fileBytes.length + "\r\n\r\n";
-            output.write(response.getBytes());
-            output.write(fileBytes);
-        } else {
-            output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+  @Override
+  public void run() {
+    try {
+      InputStream in = sock.getInputStream();
+      BufferedReader bif = new BufferedReader(new InputStreamReader(in, "UTF-8"));
+
+      String inr;
+      List<String> inp = new ArrayList<String>();
+      while ((inr = bif.readLine()) != null && !inr.isEmpty()) {
+        inp.add(inr);
+      }
+
+      String[] re = inp.get(0).split(" ");
+
+      if (re[1].equals("/")) {
+        sendCode(sock, "HTTP/1.1 200 OK\r\n\r\n");
+      }
+      if (re[1].startsWith("/echo/")) {
+        String ec = re[1].replaceFirst("/echo/", "");
+        sendCode(sock, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + ec.length() + "\r\n\r\n" + ec);
+      }
+      if (re[1].equals("/user-agent")) {
+        String[] ua = inp.get(2).split(" ");
+        sendCode(sock, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + ua[1].length() + "\r\n\r\n" + ua[1]);
+      }
+      if (re[1].startsWith("/files/")){
+        String fi = re[1].replaceFirst("/files/", "");
+        if(Objects.equals(re[0], "GET") && Files.exists(Path.of(dir + "/" + fi))) {
+          String cc = Files.readString(Path.of(dir + "/" + fi));
+          sendCode(sock, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + cc.length() + "\r\n\r\n" + cc);
+        } else if (Objects.equals(re[0], "POST")) {
+          System.out.println(inp);
+          File file = new File(dir + "/" + fi);
+          if(file.createNewFile()) {
+            String[] lengt = inp.get(3).split(" ");
+            char[] bc = new char[Integer.parseInt(lengt[1])];
+            bif.read(bc, 0, Integer.parseInt(lengt[1]));
+            String bd = new String(bc);
+            Files.write(Path.of(dir + "/" + fi), bd.getBytes());
+            sendCode(sock, "HTTP/1.1 201 OK\r\n\r\n");
+          }
         }
+        {
+          sendCode(sock, "HTTP/1.1 404 Not Found\r\n\r\n");
+        }
+      } else {
+        sendCode(sock, "HTTP/1.1 404 Not Found\r\n\r\n");
+      }
+
+      System.out.println("accepted new connection");
+    } catch (IOException e) {
+      e.printStackTrace();
     }
+  }
 
-    private static void handleEchoRequest(String requestPath, BufferedReader reader, OutputStream output) throws IOException {
-        String echoStr = requestPath.substring(6); // Remove "/echo/"
-        
-        // Read headers
-        String header;
-        String contentEncoding = null;
-        while ((header = reader.readLine()) != null && !header.isEmpty()) {
-            if (header.startsWith("Accept-Encoding:")) {
-                contentEncoding = header.split(": ")[1];
-            }
-        }
+  public static void sendCode(Socket sock, String code) throws IOException {
+    byte[] msg = code.getBytes();
 
-        // Prepare the response based on the Accept-Encoding header
-        String response;
-        if ("gzip".equalsIgnoreCase(contentEncoding)) {
-            response = String.format("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-                    echoStr.length(), echoStr);
-        } else {
-            response = String.format("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-                    echoStr.length(), echoStr);
-        }
-
-        output.write(response.getBytes());
-    }
-
-    private static void handleOtherRequests(String[] httpRequest, BufferedReader reader, OutputStream output) throws IOException {
-        // Existing request handling (for /, /user-agent)
-        String userAgent = null;
-        String header;
-        while ((header = reader.readLine()) != null && !header.isEmpty()) {
-            if (header.startsWith("User-Agent:")) {
-                userAgent = header.split(": ")[1];
-            }
-        }
-
-        if (httpRequest[1].equals("/")) {
-            output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
-        } else if (httpRequest[1].equals("/user-agent")) {
-            if (userAgent != null) {
-                String response = String.format(
-                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-                        userAgent.length(), userAgent);
-                output.write(response.getBytes());
-            } else {
-                output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
-            }
-        } else {
-            output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
-        }
-    }
+    OutputStream out = sock.getOutputStream();
+    out.write(msg);
+    out.flush();
+    out.close();
+  }
 }
