@@ -97,7 +97,7 @@ public class Main {
 
             String requestBody = new String(body);
 
-            // Create file
+            // Create file path
             Path filePath = Paths.get(directory, path);
             try {
                 // Create the parent directories if they do not exist
@@ -105,6 +105,9 @@ public class Main {
 
                 // Attempt to write the file
                 Files.write(filePath, requestBody.getBytes());
+
+                // Debugging output to confirm file creation
+                System.out.println("File created at: " + filePath.toString());
                 output.write("HTTP/1.1 201 Created\r\n\r\n".getBytes());
             } catch (IOException e) {
                 System.out.println("IOException while creating file: " + e.getMessage());
@@ -114,6 +117,5 @@ public class Main {
             output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
         }
     }
-
 
 }
