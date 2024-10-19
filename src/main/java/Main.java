@@ -8,6 +8,8 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -48,11 +50,9 @@ public class Main {
 
             // Handle file requests
             if (httpRequest[1].startsWith("/files/")) {
-                if (httpRequest[0].equals("POST")) {
-                    handleFilePostRequest(httpRequest[1], reader, output);
-                } else {
-                    handleFileRequest(httpRequest[1], output);
-                }
+                handleFileRequest(httpRequest[1], output);
+            } else if (httpRequest[1].startsWith("/echo/")) {
+                handleEchoRequest(httpRequest[1], reader, output);
             } else {
                 // Existing request handling
                 handleOtherRequests(httpRequest, reader, output);
@@ -86,33 +86,34 @@ public class Main {
         }
     }
 
-    private static void handleFilePostRequest(String filePath, BufferedReader reader, OutputStream output) throws IOException {
-        String fileName = filePath.substring(7); // Remove "/files/"
-        Path path = Paths.get(directory, fileName);
-        
-        // Read headers to find Content-Length
+    private static void handleEchoRequest(String requestPath, BufferedReader reader, OutputStream output) throws IOException {
+        String echoStr = requestPath.split("/")[2];
+        String contentEncoding = getHeader(reader, "Accept-Encoding");
+
+        String httpResponse;
+        if ("gzip".equalsIgnoreCase(contentEncoding)) {
+            httpResponse = "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Type: text/plain\r\nContent-Length: " +
+                    echoStr.length() + "\r\n\r\n" + echoStr;
+        } else {
+            httpResponse = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
+                    echoStr.length() + "\r\n\r\n" + echoStr;
+        }
+
+        output.write(httpResponse.getBytes());
+    }
+
+    private static String getHeader(BufferedReader reader, String headerName) throws IOException {
         String header;
-        int contentLength = 0;
         while ((header = reader.readLine()) != null && !header.isEmpty()) {
-            if (header.startsWith("Content-Length:")) {
-                contentLength = Integer.parseInt(header.split(": ")[1]);
+            if (header.toLowerCase().startsWith(headerName.toLowerCase() + ":")) {
+                return header.split(": ")[1];
             }
         }
-        
-        // Read the body based on the Content-Length
-        char[] body = new char[contentLength];
-        reader.read(body, 0, contentLength);
-        String bodyContent = new String(body);
-
-        // Create the file with the received content
-        Files.write(path, bodyContent.getBytes());
-        
-        // Send a 201 Created response
-        output.write("HTTP/1.1 201 Created\r\n\r\n".getBytes());
+        return null;
     }
 
     private static void handleOtherRequests(String[] httpRequest, BufferedReader reader, OutputStream output) throws IOException {
-        // Existing request handling (for /, /user-agent, /echo)
+        // Existing request handling (for /, /user-agent)
         String userAgent = null;
         String header;
         while ((header = reader.readLine()) != null && !header.isEmpty()) {
@@ -132,12 +133,6 @@ public class Main {
             } else {
                 output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
             }
-        } else if (httpRequest[1].startsWith("/echo/")) {
-            String queryParam = httpRequest[1].split("/")[2];
-            output.write(
-                    ("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
-                            queryParam.length() + "\r\n\r\n" + queryParam)
-                            .getBytes());
         } else {
             output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
         }
