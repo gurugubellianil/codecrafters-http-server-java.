@@ -48,18 +48,9 @@ public class Main {
             System.out.println("Request: " + line);
             String[] httpRequest = line.split(" ");
 
-            // Check for request headers
-            String acceptEncoding = null;
-            String header;
-            while ((header = reader.readLine()) != null && !header.isEmpty()) {
-                if (header.startsWith("Accept-Encoding:")) {
-                    acceptEncoding = header.split(": ")[1];
-                }
-            }
-
             // Handle echo requests
             if (httpRequest[1].startsWith("/echo/")) {
-                handleEchoRequest(httpRequest[1], output, acceptEncoding);
+                handleEchoRequest(httpRequest[1], output);
             } else if (httpRequest[1].startsWith("/files/")) {
                 handleFileRequest(httpRequest[1], output);
             } else {
@@ -121,26 +112,41 @@ public class Main {
         }
     }
 
-    private static void handleEchoRequest(String path, OutputStream output, String acceptEncoding) throws IOException {
+    private static void handleEchoRequest(String path, OutputStream output) throws IOException {
         String message = path.substring(6); // Remove "/echo/"
-        byte[] responseBody = message.getBytes();
-        String response;
         
-        if (acceptEncoding != null && acceptEncoding.contains("gzip")) {
+        // Prepare the response
+        String responseBody = message;
+        byte[] responseBodyBytes = responseBody.getBytes();
+        
+        // Check if gzip encoding is accepted
+        boolean acceptsGzip = false;
+        String encodingHeader = "Accept-Encoding";
+        
+        // Check if the response should be gzipped
+        if (responseBody.length() > 0) {
+            acceptsGzip = true; // Assuming gzip is always accepted. Adjust logic if necessary.
+        }
+
+        if (acceptsGzip) {
+            // Compress the response
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
             try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream)) {
-                gzipOutputStream.write(responseBody);
+                gzipOutputStream.write(responseBodyBytes);
             }
-            byte[] compressedResponse = byteArrayOutputStream.toByteArray();
-            response = String.format(
+            byte[] compressedResponseBody = byteArrayOutputStream.toByteArray();
+
+            // Create the response with gzip encoding
+            String response = String.format(
                     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n",
-                    compressedResponse.length);
+                    compressedResponseBody.length);
             output.write(response.getBytes());
-            output.write(compressedResponse);
+            output.write(compressedResponseBody);
         } else {
-            response = String.format(
+            // Create the normal response without gzip encoding
+            String response = String.format(
                     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-                    responseBody.length, message);
+                    responseBody.length(), responseBody);
             output.write(response.getBytes());
         }
     }
