@@ -1,5 +1,4 @@
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -11,7 +10,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.zip.GZIPOutputStream;
 
 public class Main {
     private static String directory = null;
@@ -47,21 +45,16 @@ public class Main {
             String line = reader.readLine();
             System.out.println("Request: " + line);
             String[] httpRequest = line.split(" ");
-            String acceptEncoding = null;
 
-            // Read headers to find Accept-Encoding
-            String header;
-            while ((header = reader.readLine()) != null && !header.isEmpty()) {
-                if (header.startsWith("Accept-Encoding:")) {
-                    acceptEncoding = header.split(": ")[1];
+            // Handle file requests
+            if (httpRequest[1].startsWith("/files/")) {
+                if (httpRequest[0].equals("POST")) {
+                    handleFilePostRequest(httpRequest[1], reader, output);
+                } else {
+                    handleFileRequest(httpRequest[1], output);
                 }
-            }
-
-            if (httpRequest[0].equals("GET") && httpRequest[1].startsWith("/echo/")) {
-                handleEchoRequest(httpRequest[1], output, acceptEncoding);
-            } else if (httpRequest[0].equals("POST") && httpRequest[1].startsWith("/files/")) {
-                handleFileRequest(httpRequest[1], reader, output);
             } else {
+                // Existing request handling
                 handleOtherRequests(httpRequest, reader, output);
             }
 
@@ -78,36 +71,48 @@ public class Main {
         }
     }
 
+    private static void handleFileRequest(String filePath, OutputStream output) throws IOException {
+        String fileName = filePath.substring(7); // Remove "/files/"
+        Path path = Paths.get(directory, fileName);
 
+        if (Files.exists(path)) {
+            byte[] fileBytes = Files.readAllBytes(path);
+            String response = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " +
+                    fileBytes.length + "\r\n\r\n";
+            output.write(response.getBytes());
+            output.write(fileBytes);
+        } else {
+            output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+        }
+    }
 
-    private static void handleFileRequest(String filePath, BufferedReader reader, OutputStream output) throws IOException {
+    private static void handleFilePostRequest(String filePath, BufferedReader reader, OutputStream output) throws IOException {
         String fileName = filePath.substring(7); // Remove "/files/"
         Path path = Paths.get(directory, fileName);
         
-        // Read Content-Length
-        int contentLength = -1; // Default to an invalid value
+        // Read headers to find Content-Length
         String header;
+        int contentLength = 0;
         while ((header = reader.readLine()) != null && !header.isEmpty()) {
             if (header.startsWith("Content-Length:")) {
                 contentLength = Integer.parseInt(header.split(": ")[1]);
             }
         }
-
-        // Read the body based on the content length
+        
+        // Read the body based on the Content-Length
         char[] body = new char[contentLength];
         reader.read(body, 0, contentLength);
-        String requestBody = new String(body);
+        String bodyContent = new String(body);
 
-        // Create file
-        Files.write(path, requestBody.getBytes());
-
-        // Respond with a 201 Created status
+        // Create the file with the received content
+        Files.write(path, bodyContent.getBytes());
+        
+        // Send a 201 Created response
         output.write("HTTP/1.1 201 Created\r\n\r\n".getBytes());
     }
 
-
     private static void handleOtherRequests(String[] httpRequest, BufferedReader reader, OutputStream output) throws IOException {
-        // Existing request handling (for /, /user-agent)
+        // Existing request handling (for /, /user-agent, /echo)
         String userAgent = null;
         String header;
         while ((header = reader.readLine()) != null && !header.isEmpty()) {
@@ -127,33 +132,14 @@ public class Main {
             } else {
                 output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
             }
+        } else if (httpRequest[1].startsWith("/echo/")) {
+            String queryParam = httpRequest[1].split("/")[2];
+            output.write(
+                    ("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
+                            queryParam.length() + "\r\n\r\n" + queryParam)
+                            .getBytes());
         } else {
             output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
         }
     }
-
-    private static void handleEchoRequest(String path, OutputStream output, String acceptEncoding) throws IOException {
-        String message = path.substring(6);
-        byte[] responseBodyBytes = message.getBytes();
-        boolean acceptsGzip = acceptEncoding != null && acceptEncoding.contains("gzip");
-
-        if (acceptsGzip) {
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream)) {
-                gzipOutputStream.write(responseBodyBytes);
-            }
-            byte[] compressedResponseBody = byteArrayOutputStream.toByteArray();
-            String response = String.format(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n",
-                    compressedResponseBody.length);
-            output.write(response.getBytes());
-            output.write(compressedResponseBody);
-        } else {
-            String response = String.format(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-                    responseBodyBytes.length, message);
-            output.write(response.getBytes());
-        }
-    }
-
 }
