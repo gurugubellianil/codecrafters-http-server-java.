@@ -47,14 +47,19 @@ public class Main {
             String line = reader.readLine();
             System.out.println("Request: " + line);
             String[] httpRequest = line.split(" ");
+            String acceptEncoding = null;
 
-            // Handle echo requests
+            // Read headers to find Accept-Encoding
+            String header;
+            while ((header = reader.readLine()) != null && !header.isEmpty()) {
+                if (header.startsWith("Accept-Encoding:")) {
+                    acceptEncoding = header.split(": ")[1];
+                }
+            }
+
             if (httpRequest[1].startsWith("/echo/")) {
-                handleEchoRequest(httpRequest[1], output);
-            } else if (httpRequest[1].startsWith("/files/")) {
-                handleFileRequest(httpRequest[1], output);
+                handleEchoRequest(httpRequest[1], output, acceptEncoding);
             } else {
-                // Existing request handling
                 handleOtherRequests(httpRequest, reader, output);
             }
 
@@ -70,6 +75,7 @@ public class Main {
             }
         }
     }
+
 
     private static void handleFileRequest(String filePath, OutputStream output) throws IOException {
         String fileName = filePath.substring(7); // Remove "/files/"
@@ -112,17 +118,10 @@ public class Main {
         }
     }
 
-    private static void handleEchoRequest(String path, OutputStream output) throws IOException {
+    private static void handleEchoRequest(String path, OutputStream output, String acceptEncoding) throws IOException {
         String message = path.substring(6);
         byte[] responseBodyBytes = message.getBytes();
-        
-        boolean acceptsGzip = false;
-        // Assuming the header can be accessed from the request (you'll need to implement this)
-        String acceptEncodingHeader = "invalid-encoding"; // Replace this with the actual header reading logic
-
-        if (acceptEncodingHeader != null && acceptEncodingHeader.contains("gzip")) {
-            acceptsGzip = true;
-        }
+        boolean acceptsGzip = acceptEncoding != null && acceptEncoding.contains("gzip");
 
         if (acceptsGzip) {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -142,4 +141,5 @@ public class Main {
             output.write(response.getBytes());
         }
     }
+
 }
