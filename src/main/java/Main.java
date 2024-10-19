@@ -77,7 +77,7 @@ public class Main {
         String contentLengthHeader = null;
         String line;
 
-        // Read headers to get Content-Length
+        // Read headers
         while (!(line = reader.readLine()).isEmpty()) {
             if (line.startsWith("Content-Length:")) {
                 contentLengthHeader = line.split(": ")[1];
@@ -88,20 +88,29 @@ public class Main {
             int contentLength = Integer.parseInt(contentLengthHeader);
             char[] body = new char[contentLength];
             int bytesRead = reader.read(body, 0, contentLength);
-            
-            if (bytesRead == contentLength) {
-                String requestBody = new String(body);
-                
-                // Create file
-                Path filePath = Paths.get(directory, path);
+
+            // Check if the bytes read matches the expected content length
+            if (bytesRead < contentLength) {
+                output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
+                return;
+            }
+
+            String requestBody = new String(body);
+
+            // Create file
+            Path filePath = Paths.get(directory, path);
+            try {
+                // Attempt to write the file
                 Files.write(filePath, requestBody.getBytes());
                 output.write("HTTP/1.1 201 Created\r\n\r\n".getBytes());
-            } else {
-                output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
+            } catch (IOException e) {
+                System.out.println("IOException while creating file: " + e.getMessage());
+                output.write("HTTP/1.1 500 Internal Server Error\r\n\r\n".getBytes());
             }
         } else {
             output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
         }
     }
+
 
 }
