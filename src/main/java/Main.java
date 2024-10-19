@@ -76,8 +76,8 @@ public class Main {
     private static void handlePostRequest(String path, String directory, BufferedReader reader, OutputStream output) throws IOException {
         String contentLengthHeader = null;
         String line;
-        
-        // Read headers
+
+        // Read headers to get Content-Length
         while (!(line = reader.readLine()).isEmpty()) {
             if (line.startsWith("Content-Length:")) {
                 contentLengthHeader = line.split(": ")[1];
@@ -87,15 +87,21 @@ public class Main {
         if (contentLengthHeader != null) {
             int contentLength = Integer.parseInt(contentLengthHeader);
             char[] body = new char[contentLength];
-            reader.read(body, 0, contentLength);
-            String requestBody = new String(body);
-
-            // Create file
-            Path filePath = Paths.get(directory, path);
-            Files.write(filePath, requestBody.getBytes());
-            output.write("HTTP/1.1 201 Created\r\n\r\n".getBytes());
+            int bytesRead = reader.read(body, 0, contentLength);
+            
+            if (bytesRead == contentLength) {
+                String requestBody = new String(body);
+                
+                // Create file
+                Path filePath = Paths.get(directory, path);
+                Files.write(filePath, requestBody.getBytes());
+                output.write("HTTP/1.1 201 Created\r\n\r\n".getBytes());
+            } else {
+                output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
+            }
         } else {
             output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
         }
     }
+
 }
