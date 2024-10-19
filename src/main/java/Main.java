@@ -85,32 +85,28 @@ public class Main {
     }
 
     private static void handleEchoRequest(String requestPath, BufferedReader reader, OutputStream output) throws IOException {
-        String echoStr = requestPath.split("/")[2]; // Extract the string to echo
-        String contentEncoding = null;
-
-        // Read headers to find the Accept-Encoding
+        String echoStr = requestPath.substring(6); // Remove "/echo/"
+        
+        // Read headers
         String header;
+        String contentEncoding = null;
         while ((header = reader.readLine()) != null && !header.isEmpty()) {
             if (header.startsWith("Accept-Encoding:")) {
                 contentEncoding = header.split(": ")[1];
             }
         }
 
-        // Prepare response based on Accept-Encoding
-        String httpResponse = prepareEchoResponse(echoStr, contentEncoding);
-        output.write(httpResponse.getBytes());
-    }
-
-    private static String prepareEchoResponse(String echoStr, String contentEncoding) {
-        String httpResponse;
+        // Prepare the response based on the Accept-Encoding header
+        String response;
         if ("gzip".equalsIgnoreCase(contentEncoding)) {
-            httpResponse = "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Type: text/plain\r\nContent-Length: " +
-                    echoStr.length() + "\r\n\r\n" + echoStr;
+            response = String.format("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+                    echoStr.length(), echoStr);
         } else {
-            httpResponse = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
-                    echoStr.length() + "\r\n\r\n" + echoStr;
+            response = String.format("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+                    echoStr.length(), echoStr);
         }
-        return httpResponse;
+
+        output.write(response.getBytes());
     }
 
     private static void handleOtherRequests(String[] httpRequest, BufferedReader reader, OutputStream output) throws IOException {
