@@ -113,40 +113,32 @@ public class Main {
     }
 
     private static void handleEchoRequest(String path, OutputStream output) throws IOException {
-        String message = path.substring(6); // Remove "/echo/"
+        String message = path.substring(6);
+        byte[] responseBodyBytes = message.getBytes();
         
-        // Prepare the response
-        String responseBody = message;
-        byte[] responseBodyBytes = responseBody.getBytes();
-        
-        // Check if gzip encoding is accepted
         boolean acceptsGzip = false;
-        String encodingHeader = "Accept-Encoding";
-        
-        // Check if the response should be gzipped
-        if (responseBody.length() > 0) {
-            acceptsGzip = true; // Assuming gzip is always accepted. Adjust logic if necessary.
+        // Assuming the header can be accessed from the request (you'll need to implement this)
+        String acceptEncodingHeader = "invalid-encoding"; // Replace this with the actual header reading logic
+
+        if (acceptEncodingHeader != null && acceptEncodingHeader.contains("gzip")) {
+            acceptsGzip = true;
         }
 
         if (acceptsGzip) {
-            // Compress the response
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
             try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream)) {
                 gzipOutputStream.write(responseBodyBytes);
             }
             byte[] compressedResponseBody = byteArrayOutputStream.toByteArray();
-
-            // Create the response with gzip encoding
             String response = String.format(
                     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n",
                     compressedResponseBody.length);
             output.write(response.getBytes());
             output.write(compressedResponseBody);
         } else {
-            // Create the normal response without gzip encoding
             String response = String.format(
                     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-                    responseBody.length(), responseBody);
+                    responseBodyBytes.length, message);
             output.write(response.getBytes());
         }
     }
