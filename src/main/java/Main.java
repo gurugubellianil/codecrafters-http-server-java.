@@ -19,11 +19,7 @@ public class Main {
       System.out.println("Server is running on port " + port);
 
       while (true) {
-        // Accept incoming client connections
         Socket clientSocket = serverSocket.accept();
-        System.out.println("Accepted new connection");
-
-        // Submit a new task to the thread pool to handle each client connection
         threadPool.submit(() -> handleRequest(clientSocket));
       }
     } catch (IOException e) {
@@ -36,17 +32,41 @@ public class Main {
          BufferedReader reader = new BufferedReader(new InputStreamReader(input));
          OutputStream output = clientSocket.getOutputStream()) {
 
-      // Read the first line of the request
       String line = reader.readLine();
       System.out.println("Request: " + line);
-
-      // Handle the request and respond
       String[] HttpRequest = line.split(" ");
+      String userAgent = null;
+
+      // Read headers to find the User-Agent
+      String header;
+      while ((header = reader.readLine()) != null && !header.isEmpty()) {
+        if (header.startsWith("User-Agent:")) {
+          userAgent = header.split(": ")[1];
+        }
+      }
+
+      // Handle requests
       if (HttpRequest[1].equals("/")) {
         output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
+      } else if (HttpRequest[1].equals("/user-agent")) {
+        if (userAgent != null) {
+          String response = String.format(
+              "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+              userAgent.length(), userAgent);
+          output.write(response.getBytes());
+        } else {
+          output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
+        }
+      } else if (HttpRequest[1].startsWith("/echo/")) {
+        String queryParam = HttpRequest[1].split("/")[2];
+        output.write(
+            ("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
+                queryParam.length() + "\r\n\r\n" + queryParam)
+                .getBytes());
       } else {
         output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
       }
+
       output.flush();
 
     } catch (IOException e) {
