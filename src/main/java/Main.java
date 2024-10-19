@@ -1,15 +1,24 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Main {
+  private static String directory;
+
   public static void main(String[] args) {
+    // Check for --directory flag
+    if (args.length == 2 && args[0].equals("--directory")) {
+      directory = args[1];
+    } else {
+      System.out.println("Usage: java Main --directory <directory_path>");
+      return;
+    }
+
     final int port = 4221;
     final int maxThreads = 10;
     ExecutorService threadPool = Executors.newFixedThreadPool(maxThreads);
@@ -35,34 +44,10 @@ public class Main {
       String line = reader.readLine();
       System.out.println("Request: " + line);
       String[] HttpRequest = line.split(" ");
-      String userAgent = null;
 
-      // Read headers to find the User-Agent
-      String header;
-      while ((header = reader.readLine()) != null && !header.isEmpty()) {
-        if (header.startsWith("User-Agent:")) {
-          userAgent = header.split(": ")[1];
-        }
-      }
-
-      // Handle requests
-      if (HttpRequest[1].equals("/")) {
-        output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
-      } else if (HttpRequest[1].equals("/user-agent")) {
-        if (userAgent != null) {
-          String response = String.format(
-              "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-              userAgent.length(), userAgent);
-          output.write(response.getBytes());
-        } else {
-          output.write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes());
-        }
-      } else if (HttpRequest[1].startsWith("/echo/")) {
-        String queryParam = HttpRequest[1].split("/")[2];
-        output.write(
-            ("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " +
-                queryParam.length() + "\r\n\r\n" + queryParam)
-                .getBytes());
+      if (HttpRequest.length > 1 && HttpRequest[1].startsWith("/files/")) {
+        String filename = HttpRequest[1].substring("/files/".length());
+        handleFileRequest(output, filename);
       } else {
         output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
       }
@@ -76,6 +61,29 @@ public class Main {
         clientSocket.close();
       } catch (IOException e) {
         System.out.println("IOException on socket close: " + e.getMessage());
+      }
+    }
+  }
+
+  private static void handleFileRequest(OutputStream output, String filename) {
+    Path filePath = Paths.get(directory, filename);
+
+    if (Files.exists(filePath)) {
+      try {
+        byte[] fileData = Files.readAllBytes(filePath);
+        String responseHeaders = "HTTP/1.1 200 OK\r\n" +
+            "Content-Type: application/octet-stream\r\n" +
+            "Content-Length: " + fileData.length + "\r\n\r\n";
+        output.write(responseHeaders.getBytes());
+        output.write(fileData);  // Write file content as response body
+      } catch (IOException e) {
+        System.out.println("IOException while reading file: " + e.getMessage());
+      }
+    } else {
+      try {
+        output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+      } catch (IOException e) {
+        System.out.println("IOException while sending 404 response: " + e.getMessage());
       }
     }
   }
